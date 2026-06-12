@@ -1,0 +1,47 @@
+﻿[
+    {
+        "id":  "korean-pronunciation-basics",
+        "title":  "Korean Pronunciation Basics for Beginners",
+        "instructor":  "ONUI",
+        "duration":  "12:34",
+        "level":  "Beginner",
+        "summary":  "Learn core Korean consonant and vowel sounds with practical speaking drills.",
+        "thumbnailUrl":  "/img/thumbnail1.png",
+        "embedUrl":  "https://www.youtube.com/shorts/hveFFgvHtjM",
+        "tags":  [
+                     "pronunciation",
+                     "korean",
+                     "beginner"
+                 ]
+    },
+    {
+        "id":  "daily-korean-conversation",
+        "title":  "Daily Korean Conversation Patterns",
+        "instructor":  "Young hoon Kim",
+        "duration":  "00:10",
+        "level":  "Intermediate",
+        "summary":  "Practice useful sentence structures for real-world Korean conversations.",
+        "thumbnailUrl":  "/img/thumbnail1.png",
+        "embedUrl":  "https://www.youtube.com/shorts/_XPIfIv9Cqw",
+        "tags":  [
+                     "conversation",
+                     "patterns",
+                     "intermediate"
+                 ]
+    },
+    {
+        "id":  "korean-presentation-speaking",
+        "title":  "Korean Presentation Speaking Skills",
+        "instructor":  "Minho Lee",
+        "duration":  "24:20",
+        "level":  "Advanced",
+        "summary":  "Build confidence in formal speaking with pronunciation, rhythm, and delivery tips.",
+        "thumbnailUrl":  "/img/thumbnail1.png",
+        "embedUrl":  "https://www.youtube.com/shorts/AuE8OIb3m2Q",
+        "tags":  [
+                     "presentation",
+                     "advanced",
+                     "speaking"
+                 ]
+    }
+]

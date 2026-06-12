@@ -1,0 +1,221 @@
+﻿@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --font-pretendard: "Pretendard", "Noto Sans KR", "Inter", "Segoe UI", sans-serif;
+  --app-page-height: 100dvh;
+  --study-card-height: clamp(420px, calc(var(--app-page-height) - 358px), 516px);
+  --color-primary-90: #052e72;
+  --color-primary-50: #2d75eb;
+  --color-primary-10: #f7fafe;
+  --color-secondary-90: #1db492;
+  --color-secondary-50: #60d4ba;
+  --color-secondary-10: #f7fdfb;
+  --color-point-90: #d19825;
+  --color-point-50: #ffc757;
+  --color-point-10: #fffaf0;
+  --color-wrong: #E84900;
+  --color-wrong-bg: rgba(232, 73, 0, 0.06);
+  --color-white: #ffffff;
+  --color-gray-bg: #fafaf8;
+  --color-gray-stroke: #ebebeb;
+  --color-gray-10: #d6d6d6;
+  --color-gray-20: #c2c2c2;
+  --color-gray-30: #adadad;
+  --color-gray-40: #949494;
+  --color-gray-50: #808080;
+  --color-gray-60-icon: #6b6b6b;
+  --color-gray-70: #575757;
+  --color-gray-80: #424242;
+  --color-gray-90: #2e2e2e;
+  --color-gray-100: #111111;
+  --color-gray-8g: #F8F8FA;
+}
+
+@supports not (height: 100dvh) {
+  :root {
+    --app-page-height: 100vh;
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --study-card-height: clamp(516px, calc(var(--app-page-height) - 358px), 640px);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  font-family: var(--font-pretendard);
+}
+
+html {
+  background: var(--color-gray-bg);
+}
+
+body {
+  margin: 0;
+  min-height: var(--app-page-height);
+  background:
+    radial-gradient(1200px 520px at 8% -6%, rgba(45, 117, 235, 0.09), transparent 62%),
+    radial-gradient(900px 480px at 88% 0%, rgba(29, 180, 146, 0.08), transparent 58%),
+    radial-gradient(700px 360px at 50% 100%, rgba(255, 199, 87, 0.08), transparent 60%),
+    var(--color-gray-bg);
+  color: var(--color-gray-100);
+  font-family: var(--font-pretendard);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select,
+input::placeholder,
+textarea::placeholder {
+  font: inherit;
+}
+
+
+.min-h-screen {
+  min-height: var(--app-page-height) !important;
+}
+::selection {
+  background: rgba(45, 117, 235, 0.18);
+  color: var(--color-gray-100);
+}
+
+.typo-tit-24-b {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 32px;
+  letter-spacing: 0;
+}
+
+.typo-tit-20-sb {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  letter-spacing: 0;
+}
+
+.typo-tit-18-b {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 26px;
+  letter-spacing: 0;
+}
+
+.typo-sub-18-r {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 26px;
+  letter-spacing: 0;
+}
+
+.typo-sub-16-b {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: 0;
+}
+
+.typo-sub-16-m {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: 0;
+}
+
+.typo-body-16-r {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0;
+}
+
+.typo-body-14-r {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  letter-spacing: 0;
+}
+
+.typo-body-14-r-b {
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 22px;
+  letter-spacing: 0;
+}
+
+.typo-tab-15-m {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 23px;
+  letter-spacing: 0;
+}
+
+.typo-but-16-b {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: 0;
+}
+
+.typo-but-14-r {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  letter-spacing: 0;
+}
+
+.typo-cap-14-r {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  letter-spacing: 0;
+}
+
+.typo-tag-14-sb {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: 0;
+}
+
+.typo-cap-13-m {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 21px;
+  letter-spacing: 0;
+}
+
+.typo-inf-12-m {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0;
+}
+
+
+
+
+.sub_16_px_b {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: 0;
+}
+
+
