@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const levelItems = ["초급 1", "초급 2", "중급 1", "중급 2", "고급 1", "고급 2"];
@@ -12,6 +13,8 @@ const menuItems = [
   { label: "마이페이지", href: "/profile" },
   { label: "1:1 문의", href: "" },
 ];
+
+type UserRole = "student" | "teacher";
 
 function MenuIcon() {
   return (
@@ -43,9 +46,13 @@ function ChevronDownIcon({ open = false }: { open?: boolean }) {
   );
 }
 
-function AcademyLogo() {
+function AcademyLogo({ role }: { role: UserRole | null }) {
   return (
-    <Link href="/" className="flex items-center gap-1.5" aria-label="홈으로 이동">
+    <Link
+      href={role === "teacher" ? "/teacher/dashboard" : "/"}
+      className="flex items-center gap-1.5"
+      aria-label="홈으로 이동"
+    >
       <span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--color-primary-50)] typo-tit-18-b text-[var(--color-white)]">
         e
       </span>
@@ -56,20 +63,28 @@ function AcademyLogo() {
 
 function useCurrentUserName() {
   const [userName, setUserName] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
 
   useEffect(() => {
     const syncUser = () => {
       const storedUser = localStorage.getItem("onui_user");
       if (!storedUser) {
         setUserName(null);
+        setUserRole(null);
         return;
       }
 
       try {
-        const parsed = JSON.parse(storedUser) as { name?: string | null; email?: string | null };
+        const parsed = JSON.parse(storedUser) as {
+          name?: string | null;
+          email?: string | null;
+          role?: UserRole;
+        };
         setUserName(parsed.name || parsed.email || null);
+        setUserRole(parsed.role === "teacher" ? "teacher" : "student");
       } catch {
         setUserName(null);
+        setUserRole(null);
       }
     };
 
@@ -83,7 +98,7 @@ function useCurrentUserName() {
     };
   }, []);
 
-  return { userName, setUserName };
+  return { userName, setUserName, userRole, setUserRole };
 }
 
 export function LogoutConfirmModal({
@@ -138,7 +153,7 @@ export function LogoutConfirmModal({
         <button
           type="button"
           onClick={onCancel}
-          className="mt-8 flex h-[58px] w-full items-center justify-center rounded-[5px] border border-[var(--color-gray-stroke)] typo-tit-18-b text-[var(--color-gray-50)]"
+          className="mt-8 flex h-[44px] w-full items-center justify-center rounded-[5px] border border-[var(--color-gray-stroke)] typo-but-16-b text-[var(--color-gray-50)]"
         >
           취소  
         </button>
@@ -146,7 +161,7 @@ export function LogoutConfirmModal({
         <button
           type="button"
           onClick={onConfirm}
-          className="mt-4 flex h-[58px] w-full items-center justify-center rounded-[5px] bg-[var(--color-primary-50)] typo-tit-18-b text-[var(--color-white)]"  
+          className="mt-4 flex h-[44px] w-full items-center justify-center rounded-[5px] bg-[var(--color-primary-50)] typo-but-16-b text-[var(--color-white)]"  
         >
           로그아웃
         </button>
@@ -156,15 +171,75 @@ export function LogoutConfirmModal({
   )
 }
 
+function LogoutCompleteModal({
+  open,
+  onConfirm,
+}: {
+  open: boolean;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" || event.key === "Enter") onConfirm();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, onConfirm]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-y-0 left-1/2 z-[80] flex w-full max-w-[430px] -translate-x-1/2 items-center justify-center px-[18px] md:max-w-[720px] md:px-10">
+      <div className="absolute inset-0 bg-black/35" />
+
+      <section className="relative z-10 w-full rounded-[12px] bg-[var(--color-white)] px-7 pb-7 pt-8 text-center">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[var(--color-primary-10)] typo-tit-24-b text-[var(--color-primary-50)]">
+          ✓
+        </div>
+
+        <h2 className="mt-5 typo-tit-20-sb text-[var(--color-gray-90)]">
+          로그아웃 되었습니다.
+        </h2>
+
+        <p className="mt-4 typo-body-14-r leading-7 text-[var(--color-gray-70)]">
+          안전하게 로그아웃되었습니다.
+          <br />
+          다시 이용하려면 로그인해주세요.
+        </p>
+
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="mt-8 flex h-[58px] w-full items-center justify-center rounded-[5px] bg-[var(--color-primary-50)] typo-tit-18-b text-[var(--color-white)]"
+        >
+          확인
+        </button>
+      </section>
+    </div>
+  );
+}
+
 function SideDrawer({
   open,
   onClose,
   userName,
+  userRole,
   onLogout,
 }: {
   open: boolean;
   onClose: () => void;
   userName: string | null;
+  userRole: UserRole | null;
   onLogout: () => void;
 }) {
   const [lectureOpen, setLectureOpen] = useState(true);
@@ -202,7 +277,7 @@ function SideDrawer({
         >
           {userName ? (
             <div className="typo-tit-18-b">
-              {userName}{"님"}
+              {userName}{userRole === "teacher" ? " 선생님" : "님"}
               <br />
               {"안녕하세요."}
             </div>
@@ -233,16 +308,35 @@ function SideDrawer({
         </div>
 
         <div className="flex-1 bg-[var(--color-white)]">
-          <button
-            type="button"
-            onClick={() => setLectureOpen((current) => !current)}
-            className="flex h-[62px] w-full items-center justify-between border-b border-[var(--color-gray-stroke)] px-5 text-left typo-sub-16-b text-[var(--color-gray-100)] transition hover:bg-[var(--color-primary-10)]"
-          >
-            <span>{"강의"}</span>
-            <ChevronDownIcon open={lectureOpen} />
-          </button>
+          {userRole === "teacher" ? (
+            <>
+              <Link
+                href="/teacher/dashboard"
+                onClick={onClose}
+                className="flex h-[62px] w-full items-center border-b border-[var(--color-gray-stroke)] px-5 typo-sub-16-b text-[var(--color-gray-100)] transition hover:bg-[var(--color-primary-10)]"
+              >
+                선생님 대시보드
+              </Link>
+              <Link
+                href="/teacher/students"
+                onClick={onClose}
+                className="flex h-[62px] w-full items-center border-b border-[var(--color-gray-stroke)] px-5 typo-sub-16-b text-[var(--color-gray-100)] transition hover:bg-[var(--color-primary-10)]"
+              >
+                학생 관리
+              </Link>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLectureOpen((current) => !current)}
+              className="flex h-[62px] w-full items-center justify-between border-b border-[var(--color-gray-stroke)] px-5 text-left typo-tit-18-b text-[var(--color-gray-100)] transition hover:bg-[var(--color-primary-10)]"
+            >
+              <span>{"강의"}</span>
+              <ChevronDownIcon open={lectureOpen} />
+            </button>
+          )}
 
-          {lectureOpen ? (
+          {userRole !== "teacher" && lectureOpen ? (
             <div className="border-b border-[var(--color-gray-stroke)] bg-[var(--color-white)] pb-3 pt-1">
               {levelItems.map((level) => (
                 <Link
@@ -257,7 +351,7 @@ function SideDrawer({
             </div>
           ) : null}
 
-          {menuItems.map((item) =>
+          {userRole !== "teacher" ? menuItems.map((item) =>
             item.href ? (
               <Link
                 key={item.label}
@@ -280,7 +374,7 @@ function SideDrawer({
                 {item.label}
               </button>
             ),
-          )}
+          ) : null}
         </div>
       </aside>
     </div>
@@ -288,14 +382,17 @@ function SideDrawer({
 }
 
 export function AppHeader() {
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const { userName, setUserName } = useCurrentUserName();
+  const { userName, setUserName, userRole, setUserRole } = useCurrentUserName();
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+  const [logoutCompleteModalOpen, setLogoutCompleteModalOpen] = useState(false);
 
   const handleLogout = () => {
     localStorage.removeItem("onui_access_token");
     localStorage.removeItem("onui_user");
     setUserName(null);
+    setUserRole(null);
     setMenuOpen(false);
   };
 
@@ -310,8 +407,16 @@ export function AppHeader() {
     window.dispatchEvent(new Event("storage"));
 
     setUserName(null);
+    setUserRole(null);
     setLogoutModalOpen(false);
+    setLogoutCompleteModalOpen(true);
   }
+
+  const handleLogoutComplete = () => {
+    setLogoutCompleteModalOpen(false);
+    router.replace("/");
+    router.refresh();
+  };
 
 
 
@@ -328,7 +433,7 @@ export function AppHeader() {
             <MenuIcon />
           </button>
 
-          <AcademyLogo />
+          <AcademyLogo role={userRole} />
 
           <div className="flex items-center gap-2">
             <button type="button" className="relative grid h-9 w-9 place-items-center text-[var(--color-gray-60-icon)]" aria-label="알림">
@@ -342,12 +447,23 @@ export function AppHeader() {
         </div>
       </header>
 
-      <SideDrawer open={menuOpen} onClose={() => setMenuOpen(false)} userName={userName} onLogout={handleLogoutRequest} />
+      <SideDrawer
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        userName={userName}
+        userRole={userRole}
+        onLogout={handleLogoutRequest}
+      />
 
       <LogoutConfirmModal
         open={logoutModalOpen}
         onCancel={() => setLogoutModalOpen(false)}
         onConfirm={handleLogoutConfirm}  
+      />
+
+      <LogoutCompleteModal
+        open={logoutCompleteModalOpen}
+        onConfirm={handleLogoutComplete}
       />
     </>
   );
