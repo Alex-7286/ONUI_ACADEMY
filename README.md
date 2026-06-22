@@ -96,7 +96,11 @@ FRONTEND_ORIGINS=http://localhost:3000
 FRONTEND_ORIGIN_REGEX=^https://.*\.ngrok-free\.dev$
 JWT_SECRET_KEY=change-this-in-production
 JWT_EXPIRE_MINUTES=120
+ADMIN_LOGIN_ID=admin
+ADMIN_LOGIN_PASSWORD=1111
 ```
+
+개발용 관리자 페이지는 `/admin`이며 기본 계정은 `admin / 1111`입니다. 운영 환경에서는 반드시 별도의 안전한 값으로 변경합니다.
 
 SpeechPro 또는 FFmpeg 설정을 변경해야 할 때 다음 값을 추가할 수 있습니다.
 
@@ -121,6 +125,9 @@ FFMPEG_BIN=ffmpeg
 ## 주요 기능
 
 - 회원가입, 로그인, 로그아웃
+- 선생님 가입 신청 및 관리자 승인·반려
+- 선생님 반 생성, 초대 링크 발급, 학생 초대 참여
+- 학생 내 반 확인 및 선생님 반별 학생 관리
 - 레벨·주차·차시별 순차 학습 및 잠금 처리
 - Excel 기반 강의 슬라이드, 강의 요약, AI 스크립트, 단어장
 - 학습 진도 저장 및 최근 학습 이어보기
@@ -134,6 +141,16 @@ FFMPEG_BIN=ffmpeg
 - `POST /auth/signup`
 - `POST /auth/login`
 - `GET /auth/me`
+- `POST /admin/login`
+- `GET /admin/teachers`
+- `PATCH /admin/teachers/{user_id}`
+- `GET /classes/teacher`
+- `POST /classes/teacher`
+- `GET /classes/teacher/{class_id}/students`
+- `DELETE /classes/teacher/{class_id}/students/{student_id}`
+- `GET /classes/invite/{invite_code}`
+- `POST /classes/join`
+- `GET /classes/student`
 - `GET /lectures/slides`
 - `GET /exams/questions`
 - `POST /exams/submit`
