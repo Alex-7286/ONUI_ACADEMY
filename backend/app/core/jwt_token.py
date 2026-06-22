@@ -25,7 +25,13 @@ def _sign(data: bytes) -> str:
     return _b64url_encode(digest)
 
 
-def create_access_token(*, user_id: int, email: str, expires_minutes: int | None = None) -> tuple[str, int]:
+def create_access_token(
+    *,
+    user_id: int,
+    email: str,
+    role: str,
+    expires_minutes: int | None = None,
+) -> tuple[str, int]:
     now = int(time.time())
     ttl_minutes = expires_minutes if expires_minutes is not None else JWT_EXPIRE_MINUTES
     exp = now + (ttl_minutes * 60)
@@ -34,6 +40,7 @@ def create_access_token(*, user_id: int, email: str, expires_minutes: int | None
     payload = {
         "sub": str(user_id),
         "email": email,
+        "role": role,
         "iat": now,
         "exp": exp,
     }
