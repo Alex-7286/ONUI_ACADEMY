@@ -188,10 +188,24 @@ function ExamContent() {
 
   useEffect(() => {
     let active = true;
+    const token = localStorage.getItem("onui_access_token");
 
-    fetch(`/api/exams/questions?level=${encodeURIComponent(level)}&type=${encodeURIComponent(examType)}`, {
+    fetch(`/api/exams/status?level=${encodeURIComponent(level)}&type=${encodeURIComponent(examType)}`, {
       cache: "no-store",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
+      .then(async (statusResponse) => {
+        if (statusResponse.ok) {
+          const statusData = (await statusResponse.json()) as { submitted?: boolean };
+          if (statusData.submitted) {
+            throw new Error("이미 응시한 시험입니다. 중간고사와 기말고사는 한 번만 응시할 수 있습니다.");
+          }
+        }
+
+        return fetch(`/api/exams/questions?level=${encodeURIComponent(level)}&type=${encodeURIComponent(examType)}`, {
+          cache: "no-store",
+        });
+      })
       .then(async (response) => {
         if (!response.ok) {
           const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
@@ -266,11 +280,15 @@ function ExamContent() {
   const submitExam = async () => {
     if (!exam || submitting) return;
 
+    const token = localStorage.getItem("onui_access_token");
     setSubmitting(true);
     try {
       const response = await fetch("/api/exams/submit", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           level,
           exam_type: examType,
@@ -281,7 +299,10 @@ function ExamContent() {
         }),
       });
 
-      if (!response.ok) throw new Error("시험 제출에 실패했습니다.");
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { detail?: unknown } | null;
+        throw new Error(typeof payload?.detail === "string" ? payload.detail : "시험 제출에 실패했습니다.");
+      }
       setSubmittedAt(new Date());
       setSubmissionReviewOpen(false);
       setResult((await response.json()) as ExamResult);
@@ -298,8 +319,8 @@ function ExamContent() {
 
   if (loadError) {
     return (
-      <main className="min-h-screen bg-[#EEF2F6]">
-        <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#EEF2F6] md:max-w-[720px]">
+      <main className="min-h-screen web-screen-bg">
+        <div className="web-mobile-frame mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px]">
           <AppHeader />
           <div className="relative flex h-[52px] items-center justify-center border-b border-[var(--color-gray-stroke)] bg-[var(--color-white)] px-4">
             <Link href="/student_assignments" className="absolute left-4 grid h-9 w-9 place-items-center text-[var(--color-gray-60-icon)]">
@@ -314,15 +335,15 @@ function ExamContent() {
   }
 
   if (!exam || !question) {
-    return <main className="min-h-screen bg-[#EEF2F6]" />;
+    return <main className="min-h-screen web-screen-bg" />;
   }
 
   if (submissionReviewOpen) {
     const unansweredCount = exam.questionCount - answeredCount;
 
     return (
-      <main className="min-h-screen bg-[#EEF2F6] text-[var(--color-gray-100)]">
-        <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#EEF2F6] md:max-w-[720px]">
+      <main className="min-h-screen web-screen-bg text-[var(--color-gray-100)]">
+        <div className="web-mobile-frame mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px]">
           <AppHeader />
           <header className="sticky top-[61px] z-10 flex h-[52px] items-center justify-center border-b border-[var(--color-gray-stroke)] bg-[var(--color-white)] px-4">
             <button
@@ -386,8 +407,8 @@ function ExamContent() {
     const elapsedSeconds = Math.max(0, exam.durationMinutes * 60 - remainingSeconds);
 
     return (
-      <main className="min-h-screen bg-[#EEF2F6] text-[var(--color-gray-100)]">
-        <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#EEF2F6] md:max-w-[720px]">
+      <main className="min-h-screen web-screen-bg text-[var(--color-gray-100)]">
+        <div className="web-mobile-frame mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px]">
           <AppHeader />
           <header className="sticky top-[61px] z-10 flex h-[52px] items-center justify-center border-b border-[var(--color-gray-stroke)] bg-[var(--color-white)] px-4">
             <Link href="/student_assignments" className="absolute left-4 grid h-9 w-9 place-items-center text-[var(--color-gray-60-icon)]">
@@ -436,8 +457,8 @@ function ExamContent() {
   }
 
   return (
-    <main className="min-h-screen bg-[#EEF2F6] text-[var(--color-gray-100)]">
-      <div className="mx-auto min-h-screen w-full max-w-[430px] bg-[#EEF2F6] md:max-w-[720px]">
+    <main className="min-h-screen web-screen-bg text-[var(--color-gray-100)]">
+      <div className="web-mobile-frame mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px]">
         <AppHeader />
         <header className="sticky top-[61px] z-10 flex h-[52px] items-center justify-center border-b border-[var(--color-gray-stroke)] bg-[var(--color-white)] px-4">
           <Link href="/student_assignments" className="absolute left-4 grid h-9 w-9 place-items-center text-[var(--color-gray-60-icon)]" aria-label="시험 목록으로">
@@ -491,7 +512,7 @@ function ExamContent() {
                       key={`${question.id}-${optionIndex}`}
                       type="button"
                       onClick={() => selectAnswer(optionIndex)}
-                      className={`flex min-h-[52px] w-full items-center gap-3 rounded-[5px] border px-3 py-2 text-left typo-sub-16-m transition ${
+                      className={`flex min-h-[40px] w-full items-center gap-3 rounded-[5px] border px-3 py-2 text-left typo-sub-16-m transition ${
                         selected
                           ? "border-[var(--color-primary-50)] bg-[var(--color-primary-10)] text-[var(--color-gray-80)] !font-bold"
                           : "border-[var(--color-gray-stroke)] bg-[var(--color-white)] text-[var(--color-gray-70)]"
@@ -673,7 +694,7 @@ function ExamContent() {
 
 export default function ExamPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-[#EEF2F6]" />}>
+    <Suspense fallback={<main className="min-h-screen web-screen-bg" />}>
       <ExamContent />
     </Suspense>
   );

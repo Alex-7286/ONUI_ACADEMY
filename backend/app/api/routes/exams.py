@@ -1,12 +1,18 @@
+import json
 import re
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from openpyxl import load_workbook
 from pydantic import BaseModel
 
+from app.core.database import get_conn
+from app.core.jwt_token import decode_access_token
+
 router = APIRouter(prefix="/exams", tags=["exams"])
+security = HTTPBearer(auto_error=False)
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
 LECTURE_DIR = BACKEND_DIR / "data" / "lecture"
@@ -35,6 +41,17 @@ class ExamSubmission(BaseModel):
     level: str = "초급 1"
     exam_type: str = "midterm"
     answers: list[ExamAnswer]
+
+
+def _optional_user_id(credentials: HTTPAuthorizationCredentials | None) -> int | None:
+    if not credentials or credentials.scheme.lower() != "bearer":
+        return None
+
+    try:
+        payload = decode_access_token(credentials.credentials)
+        return int(payload.get("sub", "0"))
+    except (ValueError, TypeError):
+        return None
 
 
 def _normalize(value: str) -> str:
@@ -164,8 +181,42 @@ def list_exam_questions(
     }
 
 
+@router.get("/status")
+def get_exam_status(
+    level: str = "초급 1",
+    exam_type: str = Query("midterm", alias="type"),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict[str, Any]:
+    student_id = _optional_user_id(credentials)
+    if student_id is None:
+        return {"submitted": False, "canTake": True}
+
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT id, score, submitted_at
+            FROM exam_submissions
+            WHERE student_id = ? AND level = ? AND exam_type = ?
+            ORDER BY id ASC
+            LIMIT 1
+            """,
+            (student_id, level, exam_type),
+        ).fetchone()
+
+    return {
+        "submitted": bool(row),
+        "canTake": not bool(row),
+        "score": row["score"] if row else None,
+        "submittedAt": row["submitted_at"] if row else None,
+    }
+
+
 @router.post("/submit")
-def submit_exam(submission: ExamSubmission) -> dict[str, Any]:
+def submit_exam(
+    submission: ExamSubmission,
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict[str, Any]:
     questions = _load_exam_questions(submission.level, submission.exam_type)
     answer_map = {answer.question_id: answer.selected_index for answer in submission.answers}
     correct_count = sum(
@@ -174,11 +225,62 @@ def submit_exam(submission: ExamSubmission) -> dict[str, Any]:
         if answer_map.get(question["id"]) == question["correctIndex"]
     )
     question_count = len(questions)
+    answered_count = sum(answer.selected_index is not None for answer in submission.answers)
     score = round((correct_count / question_count) * 100) if question_count else 0
+    student_id = _optional_user_id(credentials)
+
+    with get_conn() as conn:
+        if student_id is not None:
+            existing = conn.execute(
+                """
+                SELECT id
+                FROM exam_submissions
+                WHERE student_id = ? AND level = ? AND exam_type = ?
+                ORDER BY id ASC
+                LIMIT 1
+                """,
+                (student_id, submission.level, submission.exam_type),
+            ).fetchone()
+            if existing:
+                exam_name = EXAM_SHEET_NAMES.get(submission.exam_type, "시험")
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"{submission.level} {exam_name}는 이미 응시했습니다. 중간고사와 기말고사는 한 번만 응시할 수 있습니다.",
+                )
+
+        cur = conn.execute(
+            """
+            INSERT INTO exam_submissions (
+                student_id,
+                level,
+                exam_type,
+                question_count,
+                answered_count,
+                correct_count,
+                score,
+                answers_json,
+                ip_address
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                student_id,
+                submission.level,
+                submission.exam_type,
+                question_count,
+                answered_count,
+                correct_count,
+                score,
+                json.dumps([answer.model_dump() for answer in submission.answers], ensure_ascii=False),
+                request.client.host if request.client else None,
+            ),
+        )
+        conn.commit()
 
     return {
+        "submissionId": cur.lastrowid,
         "questionCount": question_count,
-        "answeredCount": sum(answer.selected_index is not None for answer in submission.answers),
+        "answeredCount": answered_count,
         "correctCount": correct_count,
         "score": score,
         "passed": score >= 70,

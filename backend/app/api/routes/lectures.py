@@ -26,7 +26,7 @@ LESSON_HEADER_RE = re.compile(r"(\d+)\s*" + WEEK_TEXT + r"\s*(\d+)\s*" + LESSON_
 SUMMARY_HEADER_RE = re.compile(r"(\d+)\s*" + WEEK_TEXT + r"\s*(\d+)\s*" + LESSON_TEXT)
 IMAGE_RE = re.compile(r"^[^\s]+\.(?:png|jpe?g|webp|gif|svg)$", re.IGNORECASE)
 
-CACHE_VERSION = 6
+CACHE_VERSION = 7
 
 _CACHE: dict[str, tuple[int, dict[str, Any]]] = {}
 
@@ -47,6 +47,32 @@ def _number(value: Any, fallback: int) -> int:
     text = _cell_text(value)
     match = re.search(r"\d+", text)
     return int(match.group(0)) if match else fallback
+
+
+def _image_reference_name(value: Any) -> str | None:
+    text = _cell_text(value)
+    if not text:
+        return None
+
+    file_name = Path(text.strip().rstrip("/")).name
+    if not file_name or any(character.isspace() for character in file_name):
+        return None
+
+    if IMAGE_RE.fullmatch(file_name):
+        return file_name
+
+    if "." in file_name and re.fullmatch(r"[A-Za-z0-9_.-]+", file_name):
+        return file_name
+
+    return None
+
+
+def _column_contains_image_reference(worksheet: Worksheet, column: int) -> bool:
+    for row in range(3, min(worksheet.max_row, 40) + 1):
+        if _image_reference_name(worksheet.cell(row=row, column=column).value):
+            return True
+
+    return False
 
 
 def _excel_candidates() -> list[Path]:
@@ -126,18 +152,17 @@ def _lesson_image_index(level: str) -> dict[str, str]:
 
 
 def _resolve_image_name(image: str | None, image_index: dict[str, str]) -> str | None:
-    if not image:
+    image_reference = _image_reference_name(image)
+    if not image_reference:
         return None
 
-    file_name = Path(image.strip().rstrip("/")).name
-    if not IMAGE_RE.fullmatch(file_name):
-        return None
+    file_name = Path(image_reference).name
+    stem = Path(file_name).stem.lower() if IMAGE_RE.fullmatch(file_name) else file_name.lower()
 
     if not image_index:
-        return file_name
+        return file_name if IMAGE_RE.fullmatch(file_name) else None
 
-    return image_index.get(Path(file_name).stem.lower())
-
+    return image_index.get(stem)
 
 def _parse_summaries(workbook: Any, level: str) -> dict[str, str]:
     worksheet = _find_summary_sheet(workbook, level)
@@ -184,15 +209,23 @@ def _parse_lesson_header(header: str) -> tuple[int, int, str] | None:
 
 
 def _lesson_group_columns(worksheet: Worksheet, start_column: int) -> dict[str, int]:
-    columns = {
-        "image": start_column,
-        "content": start_column + 1,
-        "script": start_column + 2,
-        "vocabulary": start_column + 3,
-    }
+    group_columns = list(range(start_column, min(start_column + 4, worksheet.max_column + 1)))
+    image_column = next(
+        (column for column in group_columns if _column_contains_image_reference(worksheet, column)),
+        start_column,
+    )
+    remaining_columns = [column for column in group_columns if column != image_column]
 
-    for offset in range(4):
-        column = start_column + offset
+    columns = {
+        "image": image_column,
+        "content": remaining_columns[0] if len(remaining_columns) > 0 else start_column + 1,
+        "script": remaining_columns[1] if len(remaining_columns) > 1 else start_column + 2,
+        "vocabulary": remaining_columns[2] if len(remaining_columns) > 2 else start_column + 3,
+    }
+    content_matched = False
+    script_matched = False
+
+    for column in group_columns:
         header = _normalize(_cell_text(worksheet.cell(row=2, column=column).value))
         if not header:
             continue
@@ -200,14 +233,19 @@ def _lesson_group_columns(worksheet: Worksheet, start_column: int) -> dict[str, 
         if IMAGE_TEXT_MARKER in header or "이미지" in header:
             columns["image"] = column
         elif "script" in header or _normalize(SCRIPT_TEXT_MARKER) in header:
-            columns["script"] = column
+            if not script_matched:
+                columns["script"] = column
+                script_matched = True
         elif _normalize(VOCABULARY_TEXT_MARKER) in header:
             columns["vocabulary"] = column
-        elif _normalize(LESSON_TEXT_MARKER) in header:
+        elif _normalize(LESSON_TEXT_MARKER) in header and column != columns["image"]:
             columns["content"] = column
+            content_matched = True
+
+    if not content_matched and columns["content"] == columns["image"] and remaining_columns:
+        columns["content"] = remaining_columns[0]
 
     return columns
-
 
 def _cache_path(excel_path: Path) -> Path:
     return CACHE_DIR / f"{_normalize(excel_path.stem)}.json"
