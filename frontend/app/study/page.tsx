@@ -566,13 +566,13 @@ function SpeechPracticeCard({
   return (
     <section className="rounded-[5px] bg-[var(--color-white)] px-5 py-5">
       <div className="mb-3 flex items-center gap-3">
-        <span className="rounded-[4px] border border-[var(--color-primary-90)] px-2 py-0.5 typo-body-16-r text-[var(--color-primary-90)]">
+        <span className="rounded-[4px] border border-[var(--color-primary-90)] px-2 py-0.5 typo-cap-13-m text-[var(--color-primary-90)]">
           SpeechPro
         </span>
-        <span className="typo-body-16-r text-[var(--color-primary-90)]">발음과 유창성을 평가합니다.</span>
+        <span className="typo-cap-13-m text-[var(--color-primary-90)]">발음과 유창성을 평가합니다.</span>
       </div>
 
-      <p className="mb-5 typo-body-16-r text-[var(--color-gray-100)]">{number}. 다음 문장을 읽어보세요.</p>
+      <p className="mb-5 typo-body-14-r text-[var(--color-gray-100)]">{number}. 다음 문장을 읽어보세요.</p>
       <div className="mb-7 rounded-[4px] bg-[var(--color-primary-10)] px-4 py-4 text-center typo-sub-18-r text-[var(--color-gray-100)]">
         {`"${text}"`}
       </div>
@@ -580,7 +580,7 @@ function SpeechPracticeCard({
       <button
         type="button"
         disabled
-        className="mb-3 flex h-[52px] w-full items-center gap-3 rounded-[5px] border border-[var(--color-gray-stroke)] bg-[var(--color-white)] px-4 text-left typo-sub-18-r text-[var(--color-gray-40)] opacity-60"
+        className="mb-3 flex h-[40px] w-full items-center gap-3 rounded-[5px] border border-[var(--color-gray-stroke)] bg-[var(--color-white)] px-4 text-left typo-tab-15-m text-[var(--color-gray-40)] opacity-60"
       >
         <SpeakerIcon />
         예시 듣기
@@ -591,7 +591,7 @@ function SpeechPracticeCard({
         type="button"
         onClick={recording ? stopRecording : startRecording}
         disabled={loading}
-        className="flex h-[52px] w-full items-center gap-3 rounded-[5px] bg-[var(--color-primary-90)] px-4 text-left typo-sub-18-r text-[var(--color-white)] disabled:opacity-60"
+        className="flex h-[40px] w-full items-center gap-3 rounded-[5px] bg-[var(--color-primary-90)] px-4 text-left typo-tab-15-m text-[var(--color-white)] disabled:opacity-60"
       >
         <MicIcon />
         {loading ? "분석 중..." : recording ? "녹음 중지" : recorded ? "다시 녹음하기" : "녹음하기"}
@@ -729,8 +729,8 @@ function QuizResultScreen({
   const passed = totalScore >= 60 && objectedPassed && speechPassed;
 
   return (
-    <main className="min-h-screen bg-[#DDE5EE] text-[var(--color-gray-100)]">
-      <div className="mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px] bg-[#EEF2F6] shadow-[0_0_0_1px_rgba(15,23,42,0.08)]">
+    <main className="min-h-screen web-screen-bg text-[var(--color-gray-100)]">
+      <div className="web-mobile-frame mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px]">
         <AppHeader />
         <QuizHeader level = {level} week={week} lesson={lesson} />
         <section className="space-y-5 px-6 py-6 md:px-10">
@@ -854,6 +854,54 @@ function DailyQuizScreen({
   const speechBusy = speechBusyStates.some(Boolean);
   const speechCompleted = speechResults.length > 0 && speechResults.every((result) => result?.score !== undefined);
 
+  const saveQuizSubmission = async () => {
+    const token = localStorage.getItem("onui_access_token");
+    if (!token) return;
+
+    const correctCount = questions.reduce((count, question, index) => count + (selectedAnswers[index] === question.correctIndex ? 1 : 0), 0);
+    const objectiveScore = questions.length > 0 ? Math.round((correctCount / questions.length) * 60) : 0;
+    const speechAverage =
+      speechResults.length > 0
+        ? speechResults.reduce((total, result) => total + Math.min(100, Math.max(0, result?.score ?? 0)), 0) / speechResults.length
+        : 0;
+    const speechScore = Math.round((speechAverage / 100) * 40);
+    const totalScore = Math.min(100, objectiveScore + speechScore);
+    const passed = totalScore >= 60 && objectiveScore >= 30 && speechScore >= 20;
+
+    await fetch(`${API_BASE_URL}/submissions/quiz`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        level,
+        week,
+        lesson,
+        lesson_title: lessonTitle,
+        question_count: questions.length,
+        correct_count: correctCount,
+        objective_score: objectiveScore,
+        speech_score: speechScore,
+        total_score: totalScore,
+        passed,
+        answers: questions.map((question, index) => ({
+          question: question.question,
+          selected_index: selectedAnswers[index],
+          correct_index: question.correctIndex,
+          selected_text: selectedAnswers[index] !== null ? question.options[selectedAnswers[index] ?? 0] : null,
+          correct_text: question.correctIndex !== null ? question.options[question.correctIndex] : null,
+        })),
+        speech_results: practiceTexts.map((text, index) => ({
+          text,
+          score: speechResults[index]?.score ?? null,
+          raw_score: speechResults[index]?.raw_score ?? null,
+          recognized_text: speechResults[index]?.recognized_text ?? "",
+        })),
+      }),
+    }).catch(() => undefined);
+  };
+
   useEffect(() => {
     if (!submitted) return;
 
@@ -892,8 +940,8 @@ function DailyQuizScreen({
   }
 
   return (
-    <main className="min-h-screen bg-[#DDE5EE] text-[var(--color-gray-100)]">
-      <div className="mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px] bg-[#EEF2F6] shadow-[0_0_0_1px_rgba(15,23,42,0.08)]">
+    <main className="min-h-screen web-screen-bg text-[var(--color-gray-100)]">
+      <div className="web-mobile-frame mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px]">
         <AppHeader />
         <QuizHeader level={level} week={week} lesson={lesson} />
         <section className="space-y-2 px-6 py-6 md:px-10">
@@ -930,7 +978,10 @@ function DailyQuizScreen({
         <div className="space-y-4 px-2 pb-6 md:px-10">
           <button
             type="button"
-            onClick={() => setSubmitted(true)}
+            onClick={() => {
+              setSubmitted(true);
+              void saveQuizSubmission();
+            }}
             disabled={speechBusy || !speechCompleted}
             className={`flex h-[58px] w-full items-center justify-center rounded-[4px] typo-but-16-b text-[var(--color-white)] ${speechBusy || !speechCompleted ? "bg-[var(--color-gray-30)]" : "bg-[var(--color-primary-50)]"}`}
           >
@@ -1005,8 +1056,8 @@ function StudyContent() {
 
   if (!slideSets && !loadError) {
     return (
-      <main className="min-h-screen bg-[#DDE5EE] text-[var(--color-gray-100)]">
-        <div className="mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px] bg-[#EEF2F6] shadow-[0_0_0_1px_rgba(15,23,42,0.08)]">
+      <main className="min-h-screen web-screen-bg text-[var(--color-gray-100)]">
+        <div className="web-mobile-frame mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px]">
           <AppHeader />
           <LessonTopBar level={level} week={week} lesson={lesson} title="학습" />
           <section className="px-4 py-6">
@@ -1021,8 +1072,8 @@ function StudyContent() {
 
   if (loadError) {
     return (
-      <main className="min-h-screen bg-[#DDE5EE] text-[var(--color-gray-100)]">
-        <div className="mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px] bg-[#EEF2F6] shadow-[0_0_0_1px_rgba(15,23,42,0.08)]">
+      <main className="min-h-screen web-screen-bg text-[var(--color-gray-100)]">
+        <div className="web-mobile-frame mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px]">
           <AppHeader />
           <LessonTopBar level={level} week={week} lesson={lesson} title="학습" />
           <section className="px-4 py-6">
@@ -1037,8 +1088,8 @@ function StudyContent() {
 
   if (!slideSet) {
     return (
-      <main className="min-h-screen bg-[#DDE5EE] text-[var(--color-gray-100)]">
-        <div className="mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px] bg-[#EEF2F6] shadow-[0_0_0_1px_rgba(15,23,42,0.08)]">
+      <main className="min-h-screen web-screen-bg text-[var(--color-gray-100)]">
+        <div className="web-mobile-frame mx-auto min-h-screen w-full max-w-[430px] md:max-w-[720px]">
           <AppHeader />
           <LessonTopBar level={level} week={week} lesson={lesson} title="학습" />
           <section className="px-4 py-6">
@@ -1086,8 +1137,8 @@ function StudyContent() {
   };
 
   return (
-    <main className="min-h-screen bg-[#DDE5EE] text-[var(--color-gray-100)]">
-      <div className="mx-auto flex min-h-screen w-full max-w-[430px] md:max-w-[720px] flex-col bg-[#EEF2F6] shadow-[0_0_0_1px_rgba(15,23,42,0.08)]">
+    <main className="min-h-screen web-screen-bg text-[var(--color-gray-100)]">
+      <div className="web-mobile-frame mx-auto flex min-h-screen w-full max-w-[430px] md:max-w-[720px] flex-col">
         <AppHeader />
         <LessonTopBar level={level} week={week} lesson={lesson} title={lessonTopic} />
 
@@ -1153,7 +1204,7 @@ function StudyContent() {
 
 export default function StudyPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-[#EEF2F6]" />}>
+    <Suspense fallback={<main className="min-h-screen web-screen-bg" />}>
       <StudyContent />
     </Suspense>
   );
