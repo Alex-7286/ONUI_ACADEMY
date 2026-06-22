@@ -4,13 +4,35 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/src/components/AppHeader";
-import { PROGRESS_EVENT_NAME, readRecentProgress } from "@/src/lib/progress";
-import type { RecentProgress } from "@/src/lib/progress";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
 type NoticeItem = {
   label?: string;
   title: string;
   date: string;
+};
+
+type UserRole = "student" | "teacher";
+
+type JoinedClass = {
+  class_id: number;
+  class_name: string;
+  teacher_name: string;
+  invite_code: string;
+  joined_at?: string | null;
+};
+
+type HomeProgress = {
+  level: string;
+  percent: number;
+  completedLessons: number;
+  totalLessons: number;
+  nextLesson: {
+    week: number;
+    lesson: number;
+    title: string;
+  } | null;
 };
 
 const notices: NoticeItem[] = [
@@ -25,13 +47,16 @@ const notices: NoticeItem[] = [
   },
 ];
 
-const defaultRecentProgress: RecentProgress = {
+const defaultHomeProgress: HomeProgress = {
   level: "초급 1",
-  week: 1,
-  lesson: 1,
-  title: "1차시 - 이름 말하기",
   percent: 0,
-  updatedAt: 0,
+  completedLessons: 0,
+  totalLessons: 0,
+  nextLesson: {
+    week: 1,
+    lesson: 1,
+    title: "이름 말하기",
+  },
 };
 
 function ChevronRightIcon() {
@@ -136,21 +161,35 @@ function CardShell({
 
 export default function HomePage() {
   const [userName, setUserName] = useState<string | null>(null);
-  const [recentProgress, setRecentProgress] = useState<RecentProgress | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [homeProgress, setHomeProgress] = useState<HomeProgress | null>(null);
+  const [joinedClasses, setJoinedClasses] = useState<JoinedClass[]>([]);
+  const [isClassLoading, setIsClassLoading] = useState(false);
 
   useEffect(() => {
     const syncUser = () => {
       const storedUser = localStorage.getItem("onui_user");
       if (!storedUser) {
         setUserName(null);
+        setUserRole(null);
+        setJoinedClasses([]);
+        setHomeProgress(null);
         return;
       }
 
       try {
-        const parsed = JSON.parse(storedUser) as { name?: string | null; email?: string | null };
+        const parsed = JSON.parse(storedUser) as {
+          name?: string | null;
+          email?: string | null;
+          role?: UserRole;
+        };
         setUserName(parsed.name || parsed.email || null);
+        setUserRole(parsed.role === "teacher" ? "teacher" : "student");
       } catch {
         setUserName(null);
+        setUserRole(null);
+        setJoinedClasses([]);
+        setHomeProgress(null);
       }
     };
 
@@ -164,25 +203,84 @@ export default function HomePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (userRole !== "student") {
+      setJoinedClasses([]);
+      return;
+    }
+
+    const loadJoinedClasses = async () => {
+      const token = localStorage.getItem("onui_access_token");
+      if (!token) {
+        setJoinedClasses([]);
+        return;
+      }
+
+      setIsClassLoading(true);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/classes/student`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+          setJoinedClasses([]);
+          return;
+        }
+
+        setJoinedClasses((await response.json()) as JoinedClass[]);
+      } finally {
+        setIsClassLoading(false);
+      }
+    };
+
+    void loadJoinedClasses();
+  }, [userRole]);
 
   useEffect(() => {
-    const syncProgress = () => setRecentProgress(readRecentProgress());
+    if (userRole !== "student") {
+      setHomeProgress(null);
+      return;
+    }
 
-    syncProgress();
-    window.addEventListener("storage", syncProgress);
-    window.addEventListener("focus", syncProgress);
-    window.addEventListener(PROGRESS_EVENT_NAME, syncProgress);
+    let active = true;
+
+    const loadHomeProgress = async () => {
+      const token = localStorage.getItem("onui_access_token");
+      if (!token) {
+        if (active) setHomeProgress(null);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/profile/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error();
+
+        const data = (await response.json()) as { homeProgress?: HomeProgress };
+        if (active) setHomeProgress(data.homeProgress ?? null);
+      } catch {
+        if (active) setHomeProgress(null);
+      }
+    };
+
+    void loadHomeProgress();
+    window.addEventListener("focus", loadHomeProgress);
 
     return () => {
-      window.removeEventListener("storage", syncProgress);
-      window.removeEventListener("focus", syncProgress);
-      window.removeEventListener(PROGRESS_EVENT_NAME, syncProgress);
+      active = false;
+      window.removeEventListener("focus", loadHomeProgress);
     };
-  }, []);
-  const activeProgress = recentProgress ?? defaultRecentProgress;
-  const recentTitle = activeProgress.title ?? `${activeProgress.lesson}차시`;
-  const recentPercent = Math.max(0, Math.min(100, activeProgress.percent));
-  const continueHref = `/lesson?level=${encodeURIComponent(activeProgress.level)}&week=${activeProgress.week}&lesson=${activeProgress.lesson}&title=${encodeURIComponent(recentTitle)}`;
+  }, [userRole]);
+
+  const activeHomeProgress = homeProgress ?? defaultHomeProgress;
+  const nextLesson = activeHomeProgress.nextLesson;
+  const levelPercent = Math.max(0, Math.min(100, activeHomeProgress.percent));
+  const continueHref = nextLesson
+    ? `/study?level=${encodeURIComponent(activeHomeProgress.level)}&week=${nextLesson.week}&lesson=${nextLesson.lesson}`
+    : `/levels?level=${encodeURIComponent(activeHomeProgress.level)}`;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[var(--color-gray-bg)] text-[var(--color-gray-100)]">
@@ -215,26 +313,71 @@ export default function HomePage() {
               <span>Level</span>
             </div>
 
-            <p className="mt-3 typo-tit-18-b">{activeProgress.level}</p>
+            <p className="mt-3 typo-tit-18-b">{activeHomeProgress.level}</p>
             <p className="mt-1 typo-body-14-r leading-5 text-white/86">
-              나의 학습 단계: {activeProgress.week}주차 {recentTitle}
+              나의 학습 진도: {activeHomeProgress.completedLessons} / {activeHomeProgress.totalLessons}차시
             </p>
 
             <div className="mt-3 flex items-center gap-3">
               <div className="flex-1">
-                <ProgressBar value={recentPercent / 100} variant="hero" />
+                <ProgressBar value={levelPercent / 100} variant="hero" />
               </div>
-              <span className="typo-tab-15-m">{recentPercent}%</span>
+              <span className="typo-tab-15-m">{levelPercent}%</span>
             </div>
 
             <Link
               href={continueHref}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[8px] bg-white py-3 typo-but-16-b text-[var(--color-primary-50)] shadow-sm transition hover:bg-slate-50"
             >
-              계속 학습하기
+              {nextLesson ? `${nextLesson.week}주차 ${nextLesson.lesson}차시 학습하기` : "레벨 현황 보기"}
               <ChevronRightIcon />
             </Link>
           </section>
+
+          {userName && userRole === "student" ? (
+            <section className="mt-4 rounded-[18px] bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="typo-cap-13-m text-[var(--color-gray-50)]">내 반</p>
+                  <h2 className="mt-1 sub_16_px_b text-[var(--color-gray-100)]">
+                    {isClassLoading
+                      ? "불러오는 중"
+                      : joinedClasses[0]?.class_name ?? "참여한 반이 없습니다"}
+                  </h2>
+                </div>
+                {joinedClasses[0] ? (
+                  <span className="rounded-full bg-[var(--color-primary-10)] px-3 py-1 typo-inf-12-m text-[var(--color-primary-50)]">
+                    {joinedClasses[0].invite_code}
+                  </span>
+                ) : null}
+              </div>
+
+              {joinedClasses[0] ? (
+                <p className="mt-3 typo-body-14-r text-[var(--color-gray-60-icon)]">
+                  {joinedClasses[0].teacher_name} 선생님 반에 연결되어 있습니다.
+                </p>
+              ) : (
+                <p className="mt-3 typo-body-14-r text-[var(--color-gray-60-icon)]">
+                  선생님에게 받은 초대 링크로 반에 참여할 수 있습니다.
+                </p>
+              )}
+
+              {joinedClasses.length > 1 ? (
+                <div className="mt-3 space-y-2 border-t border-[var(--color-gray-stroke)] pt-3">
+                  {joinedClasses.slice(1).map((joinedClass) => (
+                    <div key={joinedClass.class_id} className="flex items-center justify-between gap-3">
+                      <p className="typo-body-14-r text-[var(--color-gray-70)]">
+                        {joinedClass.class_name}
+                      </p>
+                      <span className="typo-inf-12-m text-[var(--color-gray-40)]">
+                        {joinedClass.teacher_name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           <div className="mt-4 space-y-3">
             <CardShell title="이번주 목표" rightLabel="D-2" icon={<CheckIcon />}>
