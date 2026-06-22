@@ -1,3 +1,3 @@
-from . import auth, exams, lectures, videos
+from . import admin, auth, classes, exams, lectures, speech, submissions, videos
 
-__all__ = ["auth", "exams", "lectures", "videos"]
+__all__ = ["admin", "auth", "classes", "exams", "lectures", "speech", "submissions", "videos"]

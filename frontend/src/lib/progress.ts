@@ -23,6 +23,7 @@ export type WeekProgressSource = {
 
 const PROGRESS_STORAGE_KEY = "onui_learning_progress";
 const RECENT_STORAGE_KEY = "onui_recent_progress";
+const USER_STORAGE_KEY = "onui_user";
 export const PROGRESS_EVENT_NAME = "onui_learning_progress_changed";
 
 function canUseStorage() {
@@ -34,6 +35,31 @@ function normalizePercent(percent: number) {
   return Math.max(0, Math.min(100, Math.round(percent)));
 }
 
+function readCurrentUserScope() {
+  if (!canUseStorage()) return "anonymous";
+
+  try {
+    const raw = window.localStorage.getItem(USER_STORAGE_KEY);
+    if (!raw) return "anonymous";
+
+    const parsed = JSON.parse(raw) as { id?: number | string; email?: string; role?: string };
+    if (parsed?.id !== undefined && parsed?.id !== null) {
+      return `${parsed.role ?? "user"}:${parsed.id}`;
+    }
+    if (parsed?.email) {
+      return `${parsed.role ?? "user"}:${parsed.email.trim().toLowerCase()}`;
+    }
+  } catch {
+    return "anonymous";
+  }
+
+  return "anonymous";
+}
+
+function scopedStorageKey(baseKey: string) {
+  return `${baseKey}:${readCurrentUserScope()}`;
+}
+
 export function progressKey(level: string, week: number, lesson: number) {
   return `${level}|${week}|${lesson}`;
 }
@@ -42,7 +68,7 @@ export function readProgressMap(): Record<string, LessonProgress> {
   if (!canUseStorage()) return {};
 
   try {
-    const raw = window.localStorage.getItem(PROGRESS_STORAGE_KEY);
+    const raw = window.localStorage.getItem(scopedStorageKey(PROGRESS_STORAGE_KEY));
     if (!raw) return {};
 
     const parsed = JSON.parse(raw) as Record<string, LessonProgress>;
@@ -54,7 +80,7 @@ export function readProgressMap(): Record<string, LessonProgress> {
 
 function writeProgressMap(progressMap: Record<string, LessonProgress>) {
   if (!canUseStorage()) return;
-  window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progressMap));
+  window.localStorage.setItem(scopedStorageKey(PROGRESS_STORAGE_KEY), JSON.stringify(progressMap));
 }
 
 export function getLessonProgress(level: string, week: number, lesson: number) {
@@ -65,7 +91,7 @@ export function readRecentProgress(): RecentProgress | null {
   if (!canUseStorage()) return null;
 
   try {
-    const raw = window.localStorage.getItem(RECENT_STORAGE_KEY);
+    const raw = window.localStorage.getItem(scopedStorageKey(RECENT_STORAGE_KEY));
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as RecentProgress;
@@ -94,7 +120,7 @@ export function setLessonProgress(level: string, week: number, lesson: number, p
 
   progressMap[key] = nextProgress;
   writeProgressMap(progressMap);
-  window.localStorage.setItem(RECENT_STORAGE_KEY, JSON.stringify(nextProgress));
+  window.localStorage.setItem(scopedStorageKey(RECENT_STORAGE_KEY), JSON.stringify(nextProgress));
   window.dispatchEvent(new Event(PROGRESS_EVENT_NAME));
 }
 

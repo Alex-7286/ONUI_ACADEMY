@@ -37,13 +37,27 @@ def signup(body: SignupRequest) -> UserOut:
 
     try:
         with get_conn() as conn:
+            approval_status = "pending" if body.role == "teacher" else "approved"
             cur = conn.execute(
-                "INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)",
-                (email, hash_password(body.password), body.name.strip()),
+                """
+                INSERT INTO users (email, password_hash, name, role, approval_status)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    email,
+                    hash_password(body.password),
+                    body.name.strip(),
+                    body.role,
+                    approval_status,
+                ),
             )
             user_id = cur.lastrowid
             row = conn.execute(
-                "SELECT id, email, name, created_at, last_login_at FROM users WHERE id = ?",
+                """
+                SELECT id, email, name, role, approval_status, created_at, last_login_at
+                FROM users
+                WHERE id = ?
+                """,
                 (user_id,),
             ).fetchone()
             conn.commit()
@@ -60,18 +74,49 @@ def login(body: LoginRequest) -> LoginResponse:
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, email, name, password_hash, created_at, last_login_at FROM users WHERE email = ?",
+            """
+            SELECT id, email, name, role, approval_status, password_hash,
+                   created_at, last_login_at
+            FROM users
+            WHERE email = ?
+            """,
             (email,),
         ).fetchone()
 
         if not row or not verify_password(body.password, row["password_hash"]):
             raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 올바르지 않습니다.")
 
+        if row["role"] != body.role:
+            raise HTTPException(
+                status_code=403,
+                detail="선택한 로그인 유형과 계정 권한이 일치하지 않습니다.",
+            )
+
+        if row["role"] == "teacher" and row["approval_status"] != "approved":
+            detail = (
+                "관리자 승인 대기 중입니다."
+                if row["approval_status"] == "pending"
+                else "선생님 가입 신청이 반려되었습니다."
+            )
+            raise HTTPException(status_code=403, detail=detail)
+
         last_login_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
         conn.execute("UPDATE users SET last_login_at = ? WHERE id = ?", (last_login_at, row["id"]))
+        if row["role"] == "student":
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO attendance_logs (student_id, attended_on)
+                VALUES (?, date('now'))
+                """,
+                (row["id"],),
+            )
         conn.commit()
 
-    access_token, expires_in = create_access_token(user_id=row["id"], email=row["email"])
+    access_token, expires_in = create_access_token(
+        user_id=row["id"],
+        email=row["email"],
+        role=row["role"],
+    )
 
     return LoginResponse(
         access_token=access_token,
@@ -81,6 +126,8 @@ def login(body: LoginRequest) -> LoginResponse:
             id=row["id"],
             email=row["email"],
             name=row["name"],
+            role=row["role"],
+            approval_status=row["approval_status"],
             created_at=row["created_at"],
             last_login_at=last_login_at,
         ),
@@ -101,7 +148,11 @@ def me(token: str = Depends(_require_bearer_token)) -> UserOut:
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, email, name, created_at, last_login_at FROM users WHERE id = ?",
+            """
+            SELECT id, email, name, role, approval_status, created_at, last_login_at
+            FROM users
+            WHERE id = ?
+            """,
             (user_id,),
         ).fetchone()
 
