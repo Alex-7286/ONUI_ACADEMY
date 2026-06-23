@@ -96,6 +96,24 @@ def init_db() -> None:
 
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS notices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                teacher_id INTEGER NOT NULL,
+                class_id INTEGER NOT NULL,
+                category TEXT NOT NULL DEFAULT '학사',
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_notices_class_created ON notices(class_id, id DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_notices_teacher_created ON notices(teacher_id, id DESC)")
+
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS exam_submissions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 student_id INTEGER,
