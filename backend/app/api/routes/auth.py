@@ -1,4 +1,5 @@
 ﻿import sqlite3
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,10 +8,18 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.database import get_conn
 from app.core.jwt_token import create_access_token, decode_access_token
 from app.core.secure import hash_password, verify_password
-from app.schemas.auth import LoginRequest, LoginResponse, SignupRequest, UserOut
+from app.schemas.auth import (
+    LoginRequest,
+    LoginResponse,
+    PasswordChangeRequest,
+    PasswordChangeResponse,
+    SignupRequest,
+    UserOut,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 security = HTTPBearer(auto_error=False)
+PASSWORD_PATTERN = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d\s])\S{8,16}$")
 
 
 def _normalize_email(email: str) -> str:
@@ -27,6 +36,18 @@ def _require_bearer_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return credentials.credentials
+
+
+def _get_current_user_id(token: str) -> int:
+    try:
+        payload = decode_access_token(token)
+        return int(payload.get("sub", "0"))
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="유효하지 않은 토큰입니다.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 @router.post("/signup", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -66,6 +87,43 @@ def signup(body: SignupRequest) -> UserOut:
         raise HTTPException(status_code=409, detail="이미 가입된 이메일입니다.")
 
     return UserOut(**dict(row))
+
+
+@router.patch("/password", response_model=PasswordChangeResponse)
+def change_password(
+    body: PasswordChangeRequest,
+    token: str = Depends(_require_bearer_token),
+) -> PasswordChangeResponse:
+    if not PASSWORD_PATTERN.fullmatch(body.new_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="새 비밀번호는 8~16자 영문, 숫자, 특수문자를 모두 포함해야 합니다.",
+        )
+
+    user_id = _get_current_user_id(token)
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT password_hash FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
+        if not verify_password(body.current_password, row["password_hash"]):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="현재 비밀번호가 올바르지 않습니다.")
+        if verify_password(body.new_password, row["password_hash"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="현재 비밀번호와 다른 비밀번호를 입력해 주세요.",
+            )
+
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (hash_password(body.new_password), user_id),
+        )
+        conn.commit()
+
+    return PasswordChangeResponse(message="비밀번호가 변경되었습니다.")
 
 
 @router.post("/login", response_model=LoginResponse)

@@ -19,6 +19,15 @@ class LoginRequest(BaseModel):
     role: UserRole = "student"
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=16)
+
+
+class PasswordChangeResponse(BaseModel):
+    message: str
+
+
 class UserOut(BaseModel):
     id: int
     email: str
