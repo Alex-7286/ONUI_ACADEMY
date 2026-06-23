@@ -11,7 +11,7 @@ const menuItems = [
   { label: "성적 현황", href: "/stats" },
   { label: "공지사항", href: "/notices" },
   { label: "마이페이지", href: "/profile" },
-  { label: "1:1 문의", href: "" },
+  { label: "1:1 문의", href: "/inquiries" },
 ];
 
 type UserRole = "student" | "teacher";
@@ -323,6 +323,13 @@ function SideDrawer({
                 className="flex h-[62px] w-full items-center border-b border-[var(--color-gray-stroke)] px-5 typo-sub-16-b text-[var(--color-gray-100)] transition hover:bg-[var(--color-primary-10)]"
               >
                 학생 관리
+              </Link>
+              <Link
+                href="/teacher/notices"
+                onClick={onClose}
+                className="flex h-[62px] w-full items-center border-b border-[var(--color-gray-stroke)] px-5 typo-sub-16-b text-[var(--color-gray-100)] transition hover:bg-[var(--color-primary-10)]"
+              >
+                공지사항 관리
               </Link>
             </>
           ) : (
