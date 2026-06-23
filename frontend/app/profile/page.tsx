@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 
-import { AppHeader } from "@/src/components/AppHeader";
+import { AppHeader, LogoutConfirmModal } from "@/src/components/AppHeader";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 
@@ -197,6 +197,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [errorText, setErrorText] = useState("");
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("onui_user");
@@ -244,10 +245,14 @@ export default function ProfilePage() {
   const gradeBackground = useMemo(() => (profile ? gradeRing(profile.grades.counts) : "conic-gradient(var(--color-gray-10) 0 100%)"), [profile]);
 
   const logout = () => {
-    if (!window.confirm("로그아웃하시겠습니까?")) return;
+    setLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = () => {
     localStorage.removeItem("onui_access_token");
     localStorage.removeItem("onui_user");
     window.dispatchEvent(new Event("storage"));
+    setLogoutConfirmOpen(false);
     router.replace("/");
   };
 
@@ -255,8 +260,8 @@ export default function ProfilePage() {
     <main className="min-h-screen web-screen-bg text-[var(--color-gray-100)]">
       <div className="web-mobile-frame mx-auto min-h-screen w-full max-w-[430px] bg-[#EEF2F6] md:max-w-[720px]">
         <AppHeader />
-        <section className="flex h-[64px] items-center justify-center border-b border-[var(--color-gray-stroke)] bg-[var(--color-white)]">
-          <h1 className="typo-tit-20-sb">마이페이지</h1>
+        <section className="flex h-[48px] items-center justify-center border-b border-[var(--color-gray-stroke)] bg-[var(--color-white)]">
+          <h1 className="typo-sub-18-r">마이페이지</h1>
         </section>
 
         <div className="space-y-3 px-4 py-4 md:px-8 md:py-7">
@@ -350,7 +355,7 @@ export default function ProfilePage() {
                   <span className="flex-1 typo-tab-15-m">언어 설정</span>
                   <ChevronRightIcon />
                 </button>
-                <button type="button" className="flex w-full items-center gap-3 border-t border-[var(--color-gray-stroke)] px-4 py-4 text-left">
+                <button type="button" onClick={() => router.push("/profile/password")} className="flex w-full items-center gap-3 border-t border-[var(--color-gray-stroke)] px-4 py-4 text-left">
                   <LockIcon />
                   <span className="flex-1 typo-tab-15-m">비밀번호 변경</span>
                   <ChevronRightIcon />
@@ -365,6 +370,12 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
+
+      <LogoutConfirmModal
+        open={logoutConfirmOpen}
+        onCancel={() => setLogoutConfirmOpen(false)}
+        onConfirm={confirmLogout}
+      />
     </main>
   );
 }
