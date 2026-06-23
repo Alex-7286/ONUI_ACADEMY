@@ -851,12 +851,16 @@ function DailyQuizScreen({
   const [speechBusyStates, setSpeechBusyStates] = useState<boolean[]>(() => practiceTexts.map(() => false));
   const [attempt, setAttempt] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const speechBusy = speechBusyStates.some(Boolean);
   const speechCompleted = speechResults.length > 0 && speechResults.every((result) => result?.score !== undefined);
 
   const saveQuizSubmission = async () => {
     const token = localStorage.getItem("onui_access_token");
-    if (!token) return;
+    if (!token) {
+      throw new Error("로그인 후 학습 결과를 제출해주세요.");
+    }
 
     const correctCount = questions.reduce((count, question, index) => count + (selectedAnswers[index] === question.correctIndex ? 1 : 0), 0);
     const objectiveScore = questions.length > 0 ? Math.round((correctCount / questions.length) * 60) : 0;
@@ -868,7 +872,7 @@ function DailyQuizScreen({
     const totalScore = Math.min(100, objectiveScore + speechScore);
     const passed = totalScore >= 60 && objectiveScore >= 30 && speechScore >= 20;
 
-    await fetch(`${API_BASE_URL}/submissions/quiz`, {
+    const response = await fetch(`${API_BASE_URL}/submissions/quiz`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -899,7 +903,31 @@ function DailyQuizScreen({
           recognized_text: speechResults[index]?.recognized_text ?? "",
         })),
       }),
-    }).catch(() => undefined);
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { detail?: unknown } | null;
+      throw new Error(
+        typeof payload?.detail === "string"
+          ? payload.detail
+          : "학습 결과를 저장하지 못했습니다. 다시 시도해주세요.",
+      );
+    }
+  };
+
+  const submitQuiz = async () => {
+    if (submitting || speechBusy || !speechCompleted) return;
+
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      await saveQuizSubmission();
+      setSubmitted(true);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "학습 결과를 저장하지 못했습니다. 다시 시도해주세요.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -978,15 +1006,13 @@ function DailyQuizScreen({
         <div className="space-y-4 px-2 pb-6 md:px-10">
           <button
             type="button"
-            onClick={() => {
-              setSubmitted(true);
-              void saveQuizSubmission();
-            }}
-            disabled={speechBusy || !speechCompleted}
-            className={`flex h-[58px] w-full items-center justify-center rounded-[4px] typo-but-16-b text-[var(--color-white)] ${speechBusy || !speechCompleted ? "bg-[var(--color-gray-30)]" : "bg-[var(--color-primary-50)]"}`}
+            onClick={() => void submitQuiz()}
+            disabled={submitting || speechBusy || !speechCompleted}
+            className={`flex h-[58px] w-full items-center justify-center rounded-[4px] typo-but-16-b text-[var(--color-white)] ${submitting || speechBusy || !speechCompleted ? "bg-[var(--color-gray-30)]" : "bg-[var(--color-primary-50)]"}`}
           >
-            {speechBusy ? "분석 중..." : "제출하기"}
+            {submitting ? "저장 중..." : speechBusy ? "분석 중..." : "제출하기"}
           </button>
+          {submitError ? <p className="px-2 typo-body-14-r text-[var(--color-wrong)]">{submitError}</p> : null}
           <Link
             href={`/lesson?level=${encodeURIComponent(level)}&week=${week}&lesson=${lesson}`}
             className="flex h-[58px] w-full items-center justify-center rounded-[4px] bg-[var(--color-white)] typo-but-16-b text-[var(--color-gray-50)] shadow-[0_0_0_1px_var(--color-gray-stroke)]"

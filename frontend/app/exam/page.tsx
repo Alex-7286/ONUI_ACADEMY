@@ -649,7 +649,7 @@ function ExamContent() {
       <button
         type="button"
         onClick={() => setQuestionListOpen(false)}
-        className="mt-7 flex h-[56px] w-full items-center justify-center rounded-[5px] border border-[var(--color-gray-stroke)] typo-tit-18-b text-[var(--color-gray-60-icon)]"
+        className="mt-7 flex h-[44px] w-full items-center justify-center rounded-[5px] border border-[var(--color-gray-stroke)] typo-tit-18-b text-[var(--color-gray-60-icon)]"
       >
         문제 목록 닫기
       </button>
